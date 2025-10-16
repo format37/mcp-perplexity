@@ -204,13 +204,293 @@ if df is not None:
 
 ---
 
-## Future Tools
+## Perplexity Search & Research Tools
 
-The following tools will be implemented in future iterations:
+### perplexity_sonar
+Fast answers with reliable search results.
 
-- `perplexity_search` - AI-powered web search with cited sources
-- `perplexity_research` - Deep research on specific topics
-- Additional analysis and research tools
+**Parameters:**
+- `request` (required): Your search query or question
 
-Stay tuned for updates!
+**Model Features:**
+- Lightweight, cost-effective search
+- 128K context length
+- Optimized for speed and cost
+- Real-time web search with citations
+
+**Use Cases:**
+- Quick facts and definitions
+- Summarizing content
+- News, sports, health, finance updates
+
+**Example:**
+```python
+perplexity_sonar(request="What is the latest news in AI research?")
+```
+
+### perplexity_sonar_pro
+Advanced search with enhanced results (2x more than standard Sonar).
+
+**Parameters:**
+- `request` (required): Your search query (can be complex)
+
+**Model Features:**
+- Advanced search model
+- 200K context length
+- 2x more search results than Sonar
+- Enhanced information retrieval
+
+**Use Cases:**
+- Complex research questions
+- Comparative analysis across sources
+- Information synthesis and reporting
+
+**Example:**
+```python
+perplexity_sonar_pro(
+    request="Analyze the competitive positioning of AI search engines"
+)
+```
+
+### perplexity_sonar_reasoning
+Quick reasoning with Chain-of-Thought analysis.
+
+**Parameters:**
+- `request` (required): Your query requiring reasoning
+
+**Model Features:**
+- Reasoning model with CoT reasoning
+- 128K context length
+- Structured analysis with real-time search
+- Shows reasoning process in <think> tags
+
+**Use Cases:**
+- Multi-step problem solving
+- Logical analysis and reasoning
+- Strategic planning
+
+**Example:**
+```python
+perplexity_sonar_reasoning(
+    request="Analyze the impact of AI on job markets over the next decade"
+)
+```
+
+### perplexity_sonar_reasoning_pro
+Advanced reasoning with enhanced multi-step analysis (2x more results).
+
+**Parameters:**
+- `request` (required): Your query requiring advanced reasoning
+
+**Model Features:**
+- Advanced reasoning with enhanced CoT
+- 128K context length
+- 2x more search results than Sonar Reasoning
+- Complex multi-step analysis
+
+**Use Cases:**
+- Complex multi-step reasoning
+- Advanced research with deep analysis
+- Strategic decision making
+
+**Example:**
+```python
+perplexity_sonar_reasoning_pro(
+    request="Analyze feasibility of fusion energy becoming mainstream by 2040"
+)
+```
+
+### perplexity_sonar_deep_research
+Exhaustive research across hundreds of sources with expert-level insights.
+
+**Parameters:**
+- `request` (required): Your comprehensive research query
+- `reasoning_effort` (optional): "low", "medium" (default), or "high"
+  - "low": Faster answers, reduced tokens
+  - "medium": Balanced approach
+  - "high": Deeper responses, more thorough
+
+**Model Features:**
+- Deep research model
+- Searches hundreds of sources
+- 128K context length
+- Expert-level analysis and detailed reports
+
+**Use Cases:**
+- Academic research and reports
+- Market analysis and competitive intelligence
+- Due diligence and investigative research
+
+**Example:**
+```python
+perplexity_sonar_deep_research(
+    request="Conduct comprehensive analysis of quantum computing industry through 2035",
+    reasoning_effort="high"
+)
+```
+
+---
+
+## JSON-First Architecture for Perplexity Tools
+
+**Why JSON instead of CSV?**
+
+Perplexity responses contain rich, hierarchical data that's better preserved in JSON:
+
+- **Nested structure**: Citations, search results, usage stats
+- **Rich metadata**: Dates, URLs, snippets, titles
+- **Analysis-friendly**: Easy to parse with Python's json module
+
+**JSON Response Structure:**
+
+All Perplexity tools save responses with:
+- File path to saved JSON
+- Citations list (source URLs)
+- Search results preview (titles, URLs, snippets)
+- Usage stats (tokens, costs)
+- Response content preview
+- Python code snippet to load
+
+---
+
+## Analyzing Perplexity JSON Responses
+
+### 1. Load and Explore JSON Response
+
+```python
+py_eval(code='''
+import json
+import os
+
+# Find latest Perplexity response
+files = [f for f in os.listdir(CSV_PATH) if f.startswith('sonar') and f.endswith('.json')]
+if files:
+    latest = sorted(files)[-1]
+
+    with open(f"{CSV_PATH}/{latest}", 'r') as f:
+        response = json.load(f)
+
+    print(f"=== ANALYSIS: {latest} ===")
+    print(f"Model: {response['model']}")
+    print(f"Citations: {len(response['citations'])}")
+    print(f"Search results: {len(response['search_results'])}")
+    print(f"\\\\nFirst 3 citations:")
+    for c in response['citations'][:3]:
+        print(f"  - {c}")
+else:
+    print("No Perplexity responses found")
+''')
+```
+
+### 2. Extract and Analyze Search Results
+
+```python
+py_eval(code='''
+import json
+import pandas as pd
+
+# Load response and convert search results to DataFrame
+files = [f for f in os.listdir(CSV_PATH) if f.startswith('sonar') and f.endswith('.json')]
+latest = sorted(files)[-1]
+
+with open(f"{CSV_PATH}/{latest}", 'r') as f:
+    response = json.load(f)
+
+# Convert search results to DataFrame for analysis
+search_results = response['search_results']
+df = pd.DataFrame(search_results)
+
+print(f"=== SEARCH RESULTS ANALYSIS ===")
+print(f"Total results: {len(df)}")
+print(f"\\\\nColumns: {list(df.columns)}")
+print(f"\\\\nTop 5 sources:")
+print(df[['title', 'url', 'date']].head())
+print(f"\\\\nDate range: {df['date'].min()} to {df['date'].max()}")
+''')
+```
+
+### 3. Extract Content and Save to Text
+
+```python
+py_eval(code='''
+import json
+import os
+
+# Load response and extract main content
+files = [f for f in os.listdir(CSV_PATH) if f.startswith('sonar') and f.endswith('.json')]
+latest = sorted(files)[-1]
+
+with open(f"{CSV_PATH}/{latest}", 'r') as f:
+    response = json.load(f)
+
+# Extract the response content
+content = response['choices'][0]['message']['content']
+
+# Save to text file for easier reading
+text_filename = latest.replace('.json', '.txt')
+with open(f"{CSV_PATH}/{text_filename}", 'w') as f:
+    f.write(content)
+
+print(f"✓ Content extracted to: {text_filename}")
+print(f"Content length: {len(content)} characters")
+print(f"\\\\nFirst 500 characters:")
+print(content[:500])
+''')
+```
+
+### 4. Compare Multiple Perplexity Responses
+
+```python
+py_eval(code='''
+import json
+import os
+
+# Load all Perplexity responses
+files = [f for f in os.listdir(CSV_PATH) if f.endswith('.json') and f.startswith('sonar')]
+
+print(f"=== COMPARING {len(files)} PERPLEXITY RESPONSES ===\\\\n")
+
+for file in sorted(files)[-5:]:  # Last 5 responses
+    with open(f"{CSV_PATH}/{file}", 'r') as f:
+        response = json.load(f)
+
+    model = response['model']
+    usage = response['usage']
+    citations = len(response['citations'])
+    cost = usage.get('cost', {}).get('total_cost', 0)
+
+    print(f"{file}:")
+    print(f"  Model: {model}")
+    print(f"  Citations: {citations}")
+    print(f"  Tokens: {usage['total_tokens']}")
+    print(f"  Cost: ${cost:.4f}")
+    print()
+''')
+```
+
+---
+
+## Best Practices
+
+1. **Choose the right model**:
+   - Use `sonar` for quick facts and simple queries
+   - Use `sonar-pro` for complex analysis needing more sources
+   - Use `sonar-reasoning` for problems requiring logical analysis
+   - Use `sonar-reasoning-pro` for complex multi-step reasoning
+   - Use `sonar-deep-research` for exhaustive research reports
+
+2. **Analyzing responses**:
+   - JSON responses are saved to `data/mcp-perplexity/`
+   - Use `py_eval` with Python's `json` module to analyze
+   - Extract search results to pandas DataFrame for analysis
+   - Save extracted content to .txt files for readability
+
+3. **Cost optimization**:
+   - Start with `sonar` for simple queries (lowest cost)
+   - Use `reasoning_effort="low"` for deep research when appropriate
+   - Check usage stats in responses to monitor costs
+
+4. **Document learnings**:
+   - Use `save_tool_notes` to record successful query patterns
+   - Note which models work best for specific use cases
 """

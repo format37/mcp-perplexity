@@ -16,6 +16,7 @@ from starlette.routing import Mount
 from mcp.server.fastmcp import FastMCP
 from mcp_service import register_py_eval, register_tool_notes
 from mcp_resources import register_mcp_resources
+from perplexity_tools import register_perplexity_tools
 
 load_dotenv(".env")
 
@@ -75,6 +76,9 @@ register_mcp_resources(mcp, _safe_name)
 # Register basic tools
 register_py_eval(mcp, CSV_DIR)
 register_tool_notes(mcp, CSV_DIR)
+
+# Register Perplexity tools
+register_perplexity_tools(mcp, CSV_DIR)
 
 # Add custom error handling for stream disconnections
 original_logger = logging.getLogger("mcp.server.streamable_http")

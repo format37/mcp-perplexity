@@ -4,13 +4,14 @@ MCP server providing Perplexity AI-powered web search and research capabilities 
 
 ## Architecture
 
-**CSV-First Data Design**
+**Data-First Design**
 
-All tools return structured CSV files instead of raw JSON responses, encouraging systematic data analysis workflows:
+All tools save results to structured files in the server's `data/mcp-perplexity/` folder:
 
-- **Output**: Every tool saves results to CSV files in the server's `data/mcp-perplexity/` folder
-- **Analysis**: CSV files are analyzed using the `py_eval` tool with pandas/numpy pre-loaded
-- **Pattern**: Fetch data → Receive CSV path → Analyze with Python → Make decisions
+- **CSV for Tabular Data**: Basic tools save tabular data as CSV files
+- **JSON for Hierarchical Data**: Perplexity tools save rich, nested responses as JSON files
+- **Analysis**: Use `py_eval` tool with pandas/numpy/json for data analysis
+- **Pattern**: Fetch data → Receive file path → Analyze with Python → Make decisions
 - **Benefits**: Promotes data-driven reasoning, enables complex multi-step analysis, supports historical tracking
 
 **Modular Design**
@@ -65,32 +66,131 @@ Read all historical usage notes for a specific MCP tool.
 
 ---
 
-### Future Tools
+### Perplexity Search & Research Tools
 
-The following tools will be implemented in future iterations:
+#### perplexity_sonar
+Fast answers with reliable search results.
 
-- `perplexity_search` - AI-powered web search with cited sources
-- `perplexity_research` - Deep research on specific topics
-- Additional analysis and research tools
+**Parameters:**
+- `request` (required): Your search query or question
+
+**Features:**
+- Lightweight, cost-effective search
+- 128K context length
+- Real-time web search with citations
+
+**Example:**
+```python
+perplexity_sonar(request="What is the latest news in AI research?")
+```
+
+#### perplexity_sonar_pro
+Advanced search with 2x more search results than standard Sonar.
+
+**Parameters:**
+- `request` (required): Your search query (can be complex)
+
+**Features:**
+- Advanced search model
+- 200K context length
+- 2x more search results for comprehensive analysis
+
+**Example:**
+```python
+perplexity_sonar_pro(
+    request="Analyze the competitive positioning of AI search engines"
+)
+```
+
+#### perplexity_sonar_reasoning
+Quick reasoning with Chain-of-Thought analysis.
+
+**Parameters:**
+- `request` (required): Your query requiring reasoning
+
+**Features:**
+- Reasoning model with CoT reasoning
+- 128K context length
+- Structured logical analysis with real-time search
+
+**Example:**
+```python
+perplexity_sonar_reasoning(
+    request="Analyze the impact of AI on job markets over the next decade"
+)
+```
+
+#### perplexity_sonar_reasoning_pro
+Advanced reasoning with enhanced multi-step analysis and 2x more results.
+
+**Parameters:**
+- `request` (required): Your query requiring advanced reasoning
+
+**Features:**
+- Advanced reasoning with enhanced CoT
+- 128K context length
+- 2x more search results for complex analysis
+
+**Example:**
+```python
+perplexity_sonar_reasoning_pro(
+    request="Analyze feasibility of fusion energy becoming mainstream by 2040"
+)
+```
+
+#### perplexity_sonar_deep_research
+Exhaustive research across hundreds of sources with expert-level insights.
+
+**Parameters:**
+- `request` (required): Your comprehensive research query
+- `reasoning_effort` (optional): "low", "medium" (default), or "high"
+
+**Features:**
+- Deep research model
+- Searches hundreds of sources
+- 128K context length
+- Expert-level analysis and detailed reports
+
+**Example:**
+```python
+perplexity_sonar_deep_research(
+    request="Analyze quantum computing industry through 2035",
+    reasoning_effort="high"
+)
+```
 
 ## Typical Workflow
 
 ```python
-# 1. Use Perplexity search (coming soon)
-perplexity_search(query="Latest developments in quantum computing")
-# Returns: "✓ Data saved to CSV\nFile: search_results_abc123.csv..."
+# 1. Use Perplexity search
+perplexity_sonar(request="Latest developments in quantum computing")
+# Returns: "✓ Perplexity response saved to JSON\nFile: sonar_20251016_abc123.json..."
 
 # 2. Analyze the results with Python
 py_eval(code="""
+import json
 import pandas as pd
 
-# Load search results
-df = pd.read_csv('data/mcp-perplexity/search_results_abc123.csv')
+# Load Perplexity response
+with open('data/mcp-perplexity/sonar_20251016_abc123.json', 'r') as f:
+    response = json.load(f)
 
-print(f"=== SEARCH RESULTS ANALYSIS ===")
-print(f"Total results: {len(df)}")
-print(f"\nTop 5 sources:")
-print(df[['title', 'url']].head())
+# Extract key information
+citations = response['citations']
+search_results = response['search_results']
+content = response['choices'][0]['message']['content']
+
+print(f"=== PERPLEXITY SEARCH ANALYSIS ===")
+print(f"Total citations: {len(citations)}")
+print(f"Search results: {len(search_results)}")
+print(f"\\nFirst 3 citations:")
+for c in citations[:3]:
+    print(f"  - {c}")
+
+# Convert search results to DataFrame for analysis
+df = pd.DataFrame(search_results)
+print(f"\\nTop 5 sources:")
+print(df[['title', 'url', 'date']].head())
 """)
 
 # 3. Make data-driven decisions based on analysis
@@ -100,15 +200,15 @@ print(df[['title', 'url']].head())
 
 ### Requirements
 - Docker and Docker Compose
-- Perplexity API key (if implementing search tools)
+- Perplexity API key (get yours at https://www.perplexity.ai/settings/api)
 
 ### Environment Configuration
 
 Create `.env.local` file:
 
 ```bash
-# Perplexity API Credentials (for future tools)
-# PERPLEXITY_API_KEY=your_perplexity_api_key_here
+# Perplexity API Credentials (required for Perplexity tools)
+PERPLEXITY_API_KEY=your_perplexity_api_key_here
 
 # MCP Configuration
 MCP_NAME=perplexity
@@ -164,14 +264,15 @@ Add to your Claude Desktop config file:
 - **Token Authentication**: Configure via MCP_REQUIRE_AUTH for production
 - **Data Privacy**: All CSV files are stored locally on the server
 
-## CSV Data Persistence
+## Data Persistence
 
-All CSV files are stored in `data/mcp-perplexity/` with unique identifiers, enabling:
+All data files (CSV and JSON) are stored in `data/mcp-perplexity/` with unique identifiers, enabling:
 - Historical research data tracking
 - Performance analysis over time
 - Systematic research workflows
 - Reproducible analysis and audit trails
 - Multi-session data accumulation
+- JSON for Perplexity responses preserves rich metadata (citations, search results, usage stats)
 
 ## Tool Documentation
 
@@ -214,8 +315,12 @@ mcp-perplexity/
 
 ## Use Cases
 
-- **Web Research**: AI-powered search with cited sources (coming soon)
-- **Data Analysis**: Analyze search results with pandas/numpy
+- **Web Research**: AI-powered search with cited sources across 5 Perplexity models
+- **Quick Facts**: Fast lookups with `perplexity_sonar` for definitions, news, summaries
+- **Complex Analysis**: Deep research with `perplexity_sonar_pro` for comparative analysis
+- **Reasoning Tasks**: Chain-of-Thought analysis with reasoning models for problem-solving
+- **Exhaustive Research**: Academic-level research with `perplexity_sonar_deep_research`
+- **Data Analysis**: Analyze search results and responses with pandas/numpy/json
 - **Knowledge Management**: Save and retrieve tool usage notes
 - **Research Workflows**: Systematic data collection and analysis
 - **Content Discovery**: Find and analyze web content programmatically
