@@ -1,3 +1,4 @@
 examples/
 .env.local
 data/
+prompt.md
