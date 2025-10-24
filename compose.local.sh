@@ -1,4 +1,4 @@
-#!/bin/bash
+source env.local
 
 echo "🐳 Starting Perplexity MCP Server with Docker Compose (Local Mode)..."
 
