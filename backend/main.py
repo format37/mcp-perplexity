@@ -14,7 +14,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.routing import Mount
 from mcp.server.fastmcp import FastMCP
-from mcp_service import register_py_eval, register_tool_notes
+from mcp_service import register_tool_notes
 from mcp_resources import register_mcp_resources
 from perplexity_tools import register_perplexity_tools
 
@@ -74,7 +74,6 @@ CSV_DIR.mkdir(parents=True, exist_ok=True)
 register_mcp_resources(mcp, _safe_name)
 
 # Register basic tools
-register_py_eval(mcp, CSV_DIR)
 register_tool_notes(mcp, CSV_DIR)
 
 # Register Perplexity tools

@@ -4,18 +4,18 @@ services:
       context: ./backend
       dockerfile: Dockerfile.local
     container_name: mcp-perplexity-local
-    # env_file:
-    #   - .env.local
+    env_file:
+      - .env.local
     environment:
       - PORT=8011
       - TZ=UTC
       - MCP_NAME=perplexity
-      - MCP_REQUIRE_AUTH=false
+      - MCP_REQUIRE_AUTH=true
       - MCP_ALLOW_URL_TOKENS=true
     ports:
       - "8011:8011"
     volumes:
-      - ./data:/app/data:rw
+      # - ./data:/app/data:rw
       - ./.env.local:/app/.env:ro
     # restart: unless-stopped
     networks:

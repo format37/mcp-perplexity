@@ -4,15 +4,15 @@ MCP server providing Perplexity AI-powered web search and research capabilities 
 
 ## Architecture
 
-**Data-First Design**
+**Direct JSON Response Design**
 
-All tools save results to structured files in the server's `data/mcp-perplexity/` folder:
+All Perplexity tools return complete JSON responses directly from the API:
 
-- **CSV for Tabular Data**: Basic tools save tabular data as CSV files
-- **JSON for Hierarchical Data**: Perplexity tools save rich, nested responses as JSON files
-- **Analysis**: Use `py_eval` tool with pandas/numpy/json for data analysis
-- **Pattern**: Fetch data → Receive file path → Analyze with Python → Make decisions
-- **Benefits**: Promotes data-driven reasoning, enables complex multi-step analysis, supports historical tracking
+- **Perplexity Tools**: Return full JSON responses from the Perplexity API
+- **Rich Metadata**: JSON includes content, citations, search results, and usage statistics
+- **Client-Side Processing**: Process responses as needed in your application
+- **Pattern**: Make request → Receive JSON → Parse and use data
+- **Benefits**: Simple, direct access to all response data without intermediate file storage
 
 **Modular Design**
 
@@ -21,27 +21,6 @@ Each tool is implemented with comprehensive parameter documentation, minimizing 
 ## Available Tools
 
 ### Basic Tools
-
-#### py_eval
-Execute Python code with pandas/numpy pre-loaded and access to CSV folder.
-
-**Parameters:**
-- `code` (required): Python code to execute
-- `timeout_sec` (optional): Execution timeout in seconds (default: 5.0)
-
-**Available Variables:**
-- `pd`: pandas library
-- `np`: numpy library
-- `CSV_PATH`: path to `data/mcp-perplexity/` folder
-
-**Example:**
-```python
-py_eval(code='''
-import os
-files = [f for f in os.listdir(CSV_PATH) if f.endswith('.csv')]
-print(f"Found {len(files)} CSV files")
-''')
-```
 
 #### save_tool_notes
 Save usage notes and lessons learned about any MCP tool.
@@ -162,38 +141,29 @@ perplexity_sonar_deep_research(
 ## Typical Workflow
 
 ```python
-# 1. Use Perplexity search
-perplexity_sonar(request="Latest developments in quantum computing")
-# Returns: "✓ Perplexity response saved to JSON\nFile: sonar_20251016_abc123.json..."
+# 1. Use Perplexity search - returns JSON directly
+result = perplexity_sonar(request="Latest developments in quantum computing")
 
-# 2. Analyze the results with Python
-py_eval(code="""
+# The result is a JSON string containing:
+# - choices[0].message.content: The AI response
+# - citations: List of cited sources
+# - search_results: Detailed search result metadata
+# - usage: Token usage and cost information
+
+# 2. Parse and use the JSON response
 import json
-import pandas as pd
+response = json.loads(result)
 
-# Load Perplexity response
-with open('data/mcp-perplexity/sonar_20251016_abc123.json', 'r') as f:
-    response = json.load(f)
-
-# Extract key information
+# Extract information
+content = response['choices'][0]['message']['content']
 citations = response['citations']
 search_results = response['search_results']
-content = response['choices'][0]['message']['content']
+usage = response['usage']
 
-print(f"=== PERPLEXITY SEARCH ANALYSIS ===")
-print(f"Total citations: {len(citations)}")
+print(f"Response: {content}")
+print(f"Citations: {len(citations)}")
 print(f"Search results: {len(search_results)}")
-print(f"\\nFirst 3 citations:")
-for c in citations[:3]:
-    print(f"  - {c}")
-
-# Convert search results to DataFrame for analysis
-df = pd.DataFrame(search_results)
-print(f"\\nTop 5 sources:")
-print(df[['title', 'url', 'date']].head())
-""")
-
-# 3. Make data-driven decisions based on analysis
+print(f"Tokens used: {usage['total_tokens']}")
 ```
 
 ## Setup
@@ -262,17 +232,22 @@ Add to your Claude Desktop config file:
 - **API Key Management**: Store API keys securely in environment variables
 - **Read-Only Tools**: All tools are read-only data fetching operations
 - **Token Authentication**: Configure via MCP_REQUIRE_AUTH for production
-- **Data Privacy**: All CSV files are stored locally on the server
+- **Data Privacy**: No data is stored server-side; all responses are returned directly to the client
 
-## Data Persistence
+## Response Format
 
-All data files (CSV and JSON) are stored in `data/mcp-perplexity/` with unique identifiers, enabling:
-- Historical research data tracking
-- Performance analysis over time
-- Systematic research workflows
-- Reproducible analysis and audit trails
-- Multi-session data accumulation
-- JSON for Perplexity responses preserves rich metadata (citations, search results, usage stats)
+All Perplexity tools return JSON responses directly containing:
+- **Content**: The AI-generated response text
+- **Citations**: List of source URLs cited in the response
+- **Search Results**: Detailed metadata about search results (title, URL, date, etc.)
+- **Usage Stats**: Token counts and cost information
+- **Model Info**: Model name and version used
+
+This enables:
+- Direct access to all response data
+- Flexible client-side processing
+- Easy integration with existing systems
+- No server-side file management required
 
 ## Tool Documentation
 
@@ -309,9 +284,9 @@ mcp-perplexity/
 
 1. Create tool implementation in `backend/` or a new module
 2. Register tool in `backend/main.py`
-3. Use `format_csv_response()` for standardized output
+3. Return JSON responses directly for API-based tools
 4. Update documentation in `backend/mcp_resources.py`
-5. Test with `py_eval` for data analysis workflows
+5. Test thoroughly with various inputs
 
 ## Use Cases
 
@@ -320,10 +295,9 @@ mcp-perplexity/
 - **Complex Analysis**: Deep research with `perplexity_sonar_pro` for comparative analysis
 - **Reasoning Tasks**: Chain-of-Thought analysis with reasoning models for problem-solving
 - **Exhaustive Research**: Academic-level research with `perplexity_sonar_deep_research`
-- **Data Analysis**: Analyze search results and responses with pandas/numpy/json
 - **Knowledge Management**: Save and retrieve tool usage notes
-- **Research Workflows**: Systematic data collection and analysis
 - **Content Discovery**: Find and analyze web content programmatically
+- **Agent Integration**: Direct JSON responses for easy integration with AI agents and workflows
 
 ## License
 

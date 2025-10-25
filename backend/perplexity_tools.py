@@ -2,9 +2,7 @@ import pathlib
 import requests
 import json
 import logging
-import uuid
 import os
-from datetime import datetime
 from typing import Any, Dict, Optional
 
 logging.basicConfig(level=logging.INFO)
@@ -107,113 +105,6 @@ def _extract_json_from_reasoning_response(content: str) -> Optional[Dict[str, An
         return None
 
 
-def format_json_response(filepath: pathlib.Path, response: Dict[str, Any], model: str) -> str:
-    """
-    Generate standardized response format for Perplexity JSON response files.
-
-    Args:
-        filepath: Path to the saved JSON file
-        response: Full Perplexity API response
-        model: Model name used for the request
-
-    Returns:
-        Formatted string with file info, citations, search results preview, and Python snippet
-    """
-    logger.info(f"format_json_response called with filepath: {filepath}")
-
-    try:
-        # Get file size
-        file_size_bytes = filepath.stat().st_size
-        if file_size_bytes < 1024:
-            size_str = f"{file_size_bytes} bytes"
-        elif file_size_bytes < 1024 * 1024:
-            size_str = f"{file_size_bytes / 1024:.1f} KB"
-        else:
-            size_str = f"{file_size_bytes / (1024 * 1024):.1f} MB"
-
-        # Get filename only
-        filename = filepath.name
-
-        # Extract key information from response
-        citations = response.get("citations", [])
-        search_results = response.get("search_results", [])
-        choices = response.get("choices", [])
-        usage = response.get("usage", {})
-
-        # Get response content
-        content = ""
-        if choices and len(choices) > 0:
-            content = choices[0].get("message", {}).get("content", "")
-
-        # Truncate content for preview (first 500 chars)
-        content_preview = content[:500] + "..." if len(content) > 500 else content
-
-        # Format citations list
-        citations_str = "\n".join([f"  - {c}" for c in citations[:5]])
-        if len(citations) > 5:
-            citations_str += f"\n  ... and {len(citations) - 5} more"
-
-        # Format search results preview
-        search_results_str = ""
-        for i, result in enumerate(search_results[:3]):
-            title = result.get("title", "N/A")
-            url = result.get("url", "N/A")
-            search_results_str += f"\n  {i+1}. {title}\n     {url}"
-        if len(search_results) > 3:
-            search_results_str += f"\n  ... and {len(search_results) - 3} more results"
-
-        # Format usage stats
-        usage_str = f"""  Tokens: {usage.get('prompt_tokens', 0)} input + {usage.get('completion_tokens', 0)} output = {usage.get('total_tokens', 0)} total
-  Cost: ${usage.get('cost', {}).get('total_cost', 0):.4f}"""
-
-        # Create Python snippet
-        python_snippet = f"""import json
-
-# Load the response
-with open('data/mcp-perplexity/{filename}', 'r') as f:
-    response = json.load(f)
-
-# Extract key information
-content = response['choices'][0]['message']['content']
-citations = response['citations']
-search_results = response['search_results']
-
-print(f"Response length: {{len(content)}} chars")
-print(f"Citations: {{len(citations)}}")
-print(f"Search results: {{len(search_results)}}")"""
-
-        # Build final response
-        response_text = f"""✓ Perplexity response saved to JSON
-
-File: {filename}
-Model: {model}
-Size: {size_str}
-
-Usage:
-{usage_str}
-
-Citations ({len(citations)}):
-{citations_str}
-
-Search Results ({len(search_results)}):
-{search_results_str}
-
-Response Preview:
-{content_preview}
-
-Python snippet to load:
-```python
-{python_snippet}
-```"""
-
-        logger.info(f"Response formatted successfully. Length: {len(response_text)} characters")
-        return response_text
-
-    except Exception as e:
-        logger.error(f"Error in format_json_response: {str(e)}")
-        raise
-
-
 def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path):
     """Register all Perplexity search and research tools"""
 
@@ -252,24 +143,14 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path):
             # Call Perplexity API
             response = _call_perplexity_api("sonar", request)
 
-            # Generate unique filename
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            unique_id = str(uuid.uuid4())[:8]
-            filename = f"sonar_{timestamp}_{unique_id}.json"
-            filepath = json_dir / filename
+            logger.info("Response received from Perplexity API")
 
-            # Save response to JSON
-            with open(filepath, 'w', encoding='utf-8') as f:
-                json.dump(response, f, indent=2, ensure_ascii=False)
-
-            logger.info(f"Response saved to {filepath}")
-
-            # Return formatted response
-            return format_json_response(filepath, response, "sonar")
+            # Return JSON response directly
+            return json.dumps(response, indent=2, ensure_ascii=False)
 
         except Exception as e:
             logger.error(f"Error in perplexity_sonar: {e}")
-            return f"✗ Error: {str(e)}"
+            return json.dumps({"error": str(e)}, indent=2)
 
     @local_mcp_instance.tool()
     def perplexity_sonar_pro(request: str) -> str:
@@ -308,24 +189,14 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path):
             # Call Perplexity API
             response = _call_perplexity_api("sonar-pro", request)
 
-            # Generate unique filename
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            unique_id = str(uuid.uuid4())[:8]
-            filename = f"sonar_pro_{timestamp}_{unique_id}.json"
-            filepath = json_dir / filename
+            logger.info("Response received from Perplexity API")
 
-            # Save response to JSON
-            with open(filepath, 'w', encoding='utf-8') as f:
-                json.dump(response, f, indent=2, ensure_ascii=False)
-
-            logger.info(f"Response saved to {filepath}")
-
-            # Return formatted response
-            return format_json_response(filepath, response, "sonar-pro")
+            # Return JSON response directly
+            return json.dumps(response, indent=2, ensure_ascii=False)
 
         except Exception as e:
             logger.error(f"Error in perplexity_sonar_pro: {e}")
-            return f"✗ Error: {str(e)}"
+            return json.dumps({"error": str(e)}, indent=2)
 
     @local_mcp_instance.tool()
     def perplexity_sonar_reasoning(request: str) -> str:
@@ -367,24 +238,14 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path):
             # Call Perplexity API
             response = _call_perplexity_api("sonar-reasoning", request)
 
-            # Generate unique filename
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            unique_id = str(uuid.uuid4())[:8]
-            filename = f"sonar_reasoning_{timestamp}_{unique_id}.json"
-            filepath = json_dir / filename
+            logger.info("Response received from Perplexity API")
 
-            # Save response to JSON
-            with open(filepath, 'w', encoding='utf-8') as f:
-                json.dump(response, f, indent=2, ensure_ascii=False)
-
-            logger.info(f"Response saved to {filepath}")
-
-            # Return formatted response
-            return format_json_response(filepath, response, "sonar-reasoning")
+            # Return JSON response directly
+            return json.dumps(response, indent=2, ensure_ascii=False)
 
         except Exception as e:
             logger.error(f"Error in perplexity_sonar_reasoning: {e}")
-            return f"✗ Error: {str(e)}"
+            return json.dumps({"error": str(e)}, indent=2)
 
     @local_mcp_instance.tool()
     def perplexity_sonar_reasoning_pro(request: str) -> str:
@@ -428,24 +289,14 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path):
             # Call Perplexity API
             response = _call_perplexity_api("sonar-reasoning-pro", request)
 
-            # Generate unique filename
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            unique_id = str(uuid.uuid4())[:8]
-            filename = f"sonar_reasoning_pro_{timestamp}_{unique_id}.json"
-            filepath = json_dir / filename
+            logger.info("Response received from Perplexity API")
 
-            # Save response to JSON
-            with open(filepath, 'w', encoding='utf-8') as f:
-                json.dump(response, f, indent=2, ensure_ascii=False)
-
-            logger.info(f"Response saved to {filepath}")
-
-            # Return formatted response
-            return format_json_response(filepath, response, "sonar-reasoning-pro")
+            # Return JSON response directly
+            return json.dumps(response, indent=2, ensure_ascii=False)
 
         except Exception as e:
             logger.error(f"Error in perplexity_sonar_reasoning_pro: {e}")
-            return f"✗ Error: {str(e)}"
+            return json.dumps({"error": str(e)}, indent=2)
 
     @local_mcp_instance.tool()
     def perplexity_sonar_deep_research(
@@ -493,27 +344,17 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path):
 
         # Validate reasoning_effort parameter
         if reasoning_effort not in ["low", "medium", "high"]:
-            return f"✗ Error: reasoning_effort must be 'low', 'medium', or 'high', got '{reasoning_effort}'"
+            return json.dumps({"error": f"reasoning_effort must be 'low', 'medium', or 'high', got '{reasoning_effort}'"}, indent=2)
 
         try:
             # Call Perplexity API with reasoning_effort parameter
             response = _call_perplexity_api("sonar-deep-research", request, reasoning_effort)
 
-            # Generate unique filename
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            unique_id = str(uuid.uuid4())[:8]
-            filename = f"sonar_deep_research_{timestamp}_{unique_id}.json"
-            filepath = json_dir / filename
+            logger.info("Response received from Perplexity API")
 
-            # Save response to JSON
-            with open(filepath, 'w', encoding='utf-8') as f:
-                json.dump(response, f, indent=2, ensure_ascii=False)
-
-            logger.info(f"Response saved to {filepath}")
-
-            # Return formatted response
-            return format_json_response(filepath, response, "sonar-deep-research")
+            # Return JSON response directly
+            return json.dumps(response, indent=2, ensure_ascii=False)
 
         except Exception as e:
             logger.error(f"Error in perplexity_sonar_deep_research: {e}")
-            return f"✗ Error: {str(e)}"
+            return json.dumps({"error": str(e)}, indent=2)
