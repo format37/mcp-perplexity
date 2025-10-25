@@ -2,3 +2,4 @@ examples/
 .env.local
 data/
 prompt.md
+backend/__pycache__/
