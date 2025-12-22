@@ -15,7 +15,7 @@ services:
     ports:
       - "8011:8011"
     volumes:
-      # - ./data:/app/data:rw
+      - /home/ubuntu/mcp/data/:/app/data:rw
       - ./.env.local:/app/.env:ro
     # restart: unless-stopped
     networks:
