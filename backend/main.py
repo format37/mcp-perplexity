@@ -70,14 +70,18 @@ mcp = FastMCP(_safe_name, streamable_http_path=STREAM_PATH, json_response=True)
 CSV_DIR = pathlib.Path("data/mcp-perplexity")
 CSV_DIR.mkdir(parents=True, exist_ok=True)
 
+# Request logging directory
+REQUESTS_DIR = CSV_DIR / "requests"
+REQUESTS_DIR.mkdir(parents=True, exist_ok=True)
+
 # Register MCP resources (documentation, etc.)
 register_mcp_resources(mcp, _safe_name)
 
 # Register basic tools
-register_tool_notes(mcp, CSV_DIR)
+register_tool_notes(mcp, CSV_DIR, REQUESTS_DIR)
 
 # Register Perplexity tools
-register_perplexity_tools(mcp, CSV_DIR)
+register_perplexity_tools(mcp, CSV_DIR, REQUESTS_DIR)
 
 # Add custom error handling for stream disconnections
 original_logger = logging.getLogger("mcp.server.streamable_http")

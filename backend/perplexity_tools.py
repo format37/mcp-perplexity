@@ -5,6 +5,8 @@ import logging
 import os
 from typing import Any, Dict, Optional
 
+from request_logger import log_request
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -105,11 +107,11 @@ def _extract_json_from_reasoning_response(content: str) -> Optional[Dict[str, An
         return None
 
 
-def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path):
+def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path, requests_dir: pathlib.Path):
     """Register all Perplexity search and research tools"""
 
     @local_mcp_instance.tool()
-    def perplexity_sonar(request: str) -> str:
+    def perplexity_sonar(requester: str, request: str) -> str:
         """
         Fast answers with reliable search results using Perplexity Sonar.
 
@@ -129,15 +131,17 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path):
         - Browsing news, sports, health, and finance content
 
         Parameters:
+            requester (str): Identifier of who is calling this tool (e.g., 'trading-agent', 'user-alex').
+                Used for request logging and audit purposes.
             request (str): Your search query or question
 
         Returns:
             str: Formatted response with file path, citations, search results, and content preview
 
         Example:
-            perplexity_sonar(request="What is the latest news in AI research?")
+            perplexity_sonar(requester="my-agent", request="What is the latest news in AI research?")
         """
-        logger.info(f"perplexity_sonar invoked with request: {request[:100]}...")
+        logger.info(f"perplexity_sonar invoked by {requester} with request: {request[:100]}...")
 
         try:
             # Call Perplexity API
@@ -146,14 +150,36 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path):
             logger.info("Response received from Perplexity API")
 
             # Return JSON response directly
-            return json.dumps(response, indent=2, ensure_ascii=False)
+            result = json.dumps(response, indent=2, ensure_ascii=False)
+
+            # Log the request
+            log_request(
+                requests_dir=requests_dir,
+                requester=requester,
+                tool_name="perplexity_sonar",
+                input_params={"request": request},
+                output_result=result
+            )
+
+            return result
 
         except Exception as e:
             logger.error(f"Error in perplexity_sonar: {e}")
-            return json.dumps({"error": str(e)}, indent=2)
+            error_result = json.dumps({"error": str(e)}, indent=2)
+
+            # Log error requests too
+            log_request(
+                requests_dir=requests_dir,
+                requester=requester,
+                tool_name="perplexity_sonar",
+                input_params={"request": request},
+                output_result=error_result
+            )
+
+            return error_result
 
     @local_mcp_instance.tool()
-    def perplexity_sonar_pro(request: str) -> str:
+    def perplexity_sonar_pro(requester: str, request: str) -> str:
         """
         Advanced search with enhanced search results using Perplexity Sonar Pro.
 
@@ -175,15 +201,17 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path):
         - Information synthesis and detailed reporting
 
         Parameters:
+            requester (str): Identifier of who is calling this tool (e.g., 'trading-agent', 'user-alex').
+                Used for request logging and audit purposes.
             request (str): Your search query or question (can be complex)
 
         Returns:
             str: Formatted response with file path, citations, search results, and content preview
 
         Example:
-            perplexity_sonar_pro(request="Analyze the competitive positioning of AI search engines")
+            perplexity_sonar_pro(requester="my-agent", request="Analyze the competitive positioning of AI search engines")
         """
-        logger.info(f"perplexity_sonar_pro invoked with request: {request[:100]}...")
+        logger.info(f"perplexity_sonar_pro invoked by {requester} with request: {request[:100]}...")
 
         try:
             # Call Perplexity API
@@ -192,14 +220,36 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path):
             logger.info("Response received from Perplexity API")
 
             # Return JSON response directly
-            return json.dumps(response, indent=2, ensure_ascii=False)
+            result = json.dumps(response, indent=2, ensure_ascii=False)
+
+            # Log the request
+            log_request(
+                requests_dir=requests_dir,
+                requester=requester,
+                tool_name="perplexity_sonar_pro",
+                input_params={"request": request},
+                output_result=result
+            )
+
+            return result
 
         except Exception as e:
             logger.error(f"Error in perplexity_sonar_pro: {e}")
-            return json.dumps({"error": str(e)}, indent=2)
+            error_result = json.dumps({"error": str(e)}, indent=2)
+
+            # Log error requests too
+            log_request(
+                requests_dir=requests_dir,
+                requester=requester,
+                tool_name="perplexity_sonar_pro",
+                input_params={"request": request},
+                output_result=error_result
+            )
+
+            return error_result
 
     @local_mcp_instance.tool()
-    def perplexity_sonar_reasoning(request: str) -> str:
+    def perplexity_sonar_reasoning(requester: str, request: str) -> str:
         """
         Quick reasoning with real-time search using Perplexity Sonar Reasoning.
 
@@ -219,6 +269,8 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path):
         - Strategic planning and decision making
 
         Parameters:
+            requester (str): Identifier of who is calling this tool (e.g., 'trading-agent', 'user-alex').
+                Used for request logging and audit purposes.
             request (str): Your query requiring reasoning and analysis
 
         Returns:
@@ -229,10 +281,11 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path):
 
         Example:
             perplexity_sonar_reasoning(
+                requester="my-agent",
                 request="Analyze the impact of AI on global job markets over the next decade"
             )
         """
-        logger.info(f"perplexity_sonar_reasoning invoked with request: {request[:100]}...")
+        logger.info(f"perplexity_sonar_reasoning invoked by {requester} with request: {request[:100]}...")
 
         try:
             # Call Perplexity API
@@ -241,14 +294,36 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path):
             logger.info("Response received from Perplexity API")
 
             # Return JSON response directly
-            return json.dumps(response, indent=2, ensure_ascii=False)
+            result = json.dumps(response, indent=2, ensure_ascii=False)
+
+            # Log the request
+            log_request(
+                requests_dir=requests_dir,
+                requester=requester,
+                tool_name="perplexity_sonar_reasoning",
+                input_params={"request": request},
+                output_result=result
+            )
+
+            return result
 
         except Exception as e:
             logger.error(f"Error in perplexity_sonar_reasoning: {e}")
-            return json.dumps({"error": str(e)}, indent=2)
+            error_result = json.dumps({"error": str(e)}, indent=2)
+
+            # Log error requests too
+            log_request(
+                requests_dir=requests_dir,
+                requester=requester,
+                tool_name="perplexity_sonar_reasoning",
+                input_params={"request": request},
+                output_result=error_result
+            )
+
+            return error_result
 
     @local_mcp_instance.tool()
-    def perplexity_sonar_reasoning_pro(request: str) -> str:
+    def perplexity_sonar_reasoning_pro(requester: str, request: str) -> str:
         """
         Advanced reasoning with enhanced multi-step analysis using Perplexity Sonar Reasoning Pro.
 
@@ -268,6 +343,8 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path):
         - Strategic decision making with comprehensive analysis
 
         Parameters:
+            requester (str): Identifier of who is calling this tool (e.g., 'trading-agent', 'user-alex').
+                Used for request logging and audit purposes.
             request (str): Your query requiring advanced reasoning and deep analysis
 
         Returns:
@@ -280,10 +357,11 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path):
 
         Example:
             perplexity_sonar_reasoning_pro(
+                requester="my-agent",
                 request="Analyze the feasibility of fusion energy becoming mainstream by 2040"
             )
         """
-        logger.info(f"perplexity_sonar_reasoning_pro invoked with request: {request[:100]}...")
+        logger.info(f"perplexity_sonar_reasoning_pro invoked by {requester} with request: {request[:100]}...")
 
         try:
             # Call Perplexity API
@@ -292,14 +370,37 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path):
             logger.info("Response received from Perplexity API")
 
             # Return JSON response directly
-            return json.dumps(response, indent=2, ensure_ascii=False)
+            result = json.dumps(response, indent=2, ensure_ascii=False)
+
+            # Log the request
+            log_request(
+                requests_dir=requests_dir,
+                requester=requester,
+                tool_name="perplexity_sonar_reasoning_pro",
+                input_params={"request": request},
+                output_result=result
+            )
+
+            return result
 
         except Exception as e:
             logger.error(f"Error in perplexity_sonar_reasoning_pro: {e}")
-            return json.dumps({"error": str(e)}, indent=2)
+            error_result = json.dumps({"error": str(e)}, indent=2)
+
+            # Log error requests too
+            log_request(
+                requests_dir=requests_dir,
+                requester=requester,
+                tool_name="perplexity_sonar_reasoning_pro",
+                input_params={"request": request},
+                output_result=error_result
+            )
+
+            return error_result
 
     @local_mcp_instance.tool()
     def perplexity_sonar_deep_research(
+        requester: str,
         request: str,
         reasoning_effort: str = "medium"
     ) -> str:
@@ -324,6 +425,8 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path):
         - Due diligence and investigative research
 
         Parameters:
+            requester (str): Identifier of who is calling this tool (e.g., 'trading-agent', 'user-alex').
+                Used for request logging and audit purposes.
             request (str): Your research query (should be comprehensive and detailed)
             reasoning_effort (str): Computational effort level - controls speed vs thoroughness
                 - "low": Faster, simpler answers with reduced token usage
@@ -335,16 +438,28 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path):
 
         Example:
             perplexity_sonar_deep_research(
+                requester="my-agent",
                 request="Conduct comprehensive analysis of quantum computing industry through 2035",
                 reasoning_effort="high"
             )
         """
-        logger.info(f"perplexity_sonar_deep_research invoked with request: {request[:100]}...")
+        logger.info(f"perplexity_sonar_deep_research invoked by {requester} with request: {request[:100]}...")
         logger.info(f"Reasoning effort: {reasoning_effort}")
 
         # Validate reasoning_effort parameter
         if reasoning_effort not in ["low", "medium", "high"]:
-            return json.dumps({"error": f"reasoning_effort must be 'low', 'medium', or 'high', got '{reasoning_effort}'"}, indent=2)
+            error_result = json.dumps({"error": f"reasoning_effort must be 'low', 'medium', or 'high', got '{reasoning_effort}'"}, indent=2)
+
+            # Log validation error
+            log_request(
+                requests_dir=requests_dir,
+                requester=requester,
+                tool_name="perplexity_sonar_deep_research",
+                input_params={"request": request, "reasoning_effort": reasoning_effort},
+                output_result=error_result
+            )
+
+            return error_result
 
         try:
             # Call Perplexity API with reasoning_effort parameter
@@ -353,8 +468,30 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path):
             logger.info("Response received from Perplexity API")
 
             # Return JSON response directly
-            return json.dumps(response, indent=2, ensure_ascii=False)
+            result = json.dumps(response, indent=2, ensure_ascii=False)
+
+            # Log the request
+            log_request(
+                requests_dir=requests_dir,
+                requester=requester,
+                tool_name="perplexity_sonar_deep_research",
+                input_params={"request": request, "reasoning_effort": reasoning_effort},
+                output_result=result
+            )
+
+            return result
 
         except Exception as e:
             logger.error(f"Error in perplexity_sonar_deep_research: {e}")
-            return json.dumps({"error": str(e)}, indent=2)
+            error_result = json.dumps({"error": str(e)}, indent=2)
+
+            # Log error requests too
+            log_request(
+                requests_dir=requests_dir,
+                requester=requester,
+                tool_name="perplexity_sonar_deep_research",
+                input_params={"request": request, "reasoning_effort": reasoning_effort},
+                output_result=error_result
+            )
+
+            return error_result

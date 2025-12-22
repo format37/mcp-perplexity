@@ -4,6 +4,8 @@ import pandas as pd
 import json
 import logging
 
+from request_logger import log_request
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -171,7 +173,7 @@ Python snippet to load:
         raise
 
 
-def register_tool_notes(local_mcp_instance, csv_dir):
+def register_tool_notes(local_mcp_instance, csv_dir, requests_dir):
     """Register tools for saving and reading tool usage notes"""
 
     # Create tool_notes directory path
@@ -179,7 +181,7 @@ def register_tool_notes(local_mcp_instance, csv_dir):
     notes_dir.mkdir(parents=True, exist_ok=True)
 
     @local_mcp_instance.tool()
-    def save_tool_notes(tool_name: str, markdown_notes: str) -> str:
+    def save_tool_notes(requester: str, tool_name: str, markdown_notes: str) -> str:
         """
         Save usage notes and lessons learned about any MCP tool.
 
@@ -188,6 +190,8 @@ def register_tool_notes(local_mcp_instance, csv_dir):
         to create a historical record of lessons learned.
 
         Parameters:
+            requester (str): Identifier of who is calling this tool (e.g., 'trading-agent', 'user-alex').
+                Used for request logging and audit purposes.
             tool_name (str): Name of the tool to document (e.g., 'perplexity_search', 'py_eval')
             markdown_notes (str): Concise markdown-formatted notes about tool usage. Include:
                 - Parameter issues or gotchas discovered
@@ -208,6 +212,7 @@ def register_tool_notes(local_mcp_instance, csv_dir):
 
         Example usage:
             save_tool_notes(
+                requester="my-agent",
                 tool_name="perplexity_search",
                 markdown_notes="**Parameter Issue:** The `query` parameter should be specific and focused for best results."
             )
@@ -218,7 +223,7 @@ def register_tool_notes(local_mcp_instance, csv_dir):
             - Use markdown formatting for better readability
             - Keep notes concise and actionable
         """
-        logger.info(f"save_tool_notes invoked for tool: {tool_name}")
+        logger.info(f"save_tool_notes invoked by {requester} for tool: {tool_name}")
 
         try:
             from datetime import datetime
@@ -246,14 +251,42 @@ def register_tool_notes(local_mcp_instance, csv_dir):
 
             logger.info(f"Notes saved to {notes_file}")
 
-            return f"✓ Notes saved successfully\n\nTool: {tool_name}\nFile: tool_notes/{safe_tool_name}.md\nTimestamp: {timestamp}"
+            result = f"✓ Notes saved successfully\n\nTool: {tool_name}\nFile: tool_notes/{safe_tool_name}.md\nTimestamp: {timestamp}"
+
+            # Log the request
+            log_request(
+                requests_dir=requests_dir,
+                requester=requester,
+                tool_name="save_tool_notes",
+                input_params={
+                    "tool_name": tool_name,
+                    "markdown_notes": markdown_notes[:500] + "..." if len(markdown_notes) > 500 else markdown_notes
+                },
+                output_result=result
+            )
+
+            return result
 
         except Exception as e:
             logger.error(f"Error saving tool notes: {e}")
-            return f"✗ Error saving notes: {str(e)}"
+            error_result = f"✗ Error saving notes: {str(e)}"
+
+            # Log error requests too
+            log_request(
+                requests_dir=requests_dir,
+                requester=requester,
+                tool_name="save_tool_notes",
+                input_params={
+                    "tool_name": tool_name,
+                    "markdown_notes": markdown_notes[:500] + "..." if len(markdown_notes) > 500 else markdown_notes
+                },
+                output_result=error_result
+            )
+
+            return error_result
 
     @local_mcp_instance.tool()
-    def read_tool_notes(tool_name: str) -> str:
+    def read_tool_notes(requester: str, tool_name: str) -> str:
         """
         Read all historical usage notes for a specific MCP tool.
 
@@ -262,6 +295,8 @@ def register_tool_notes(local_mcp_instance, csv_dir):
         calling complex tools to avoid known issues.
 
         Parameters:
+            requester (str): Identifier of who is calling this tool (e.g., 'trading-agent', 'user-alex').
+                Used for request logging and audit purposes.
             tool_name (str): Name of the tool to read notes for (e.g., 'perplexity_search')
 
         Returns:
@@ -275,14 +310,14 @@ def register_tool_notes(local_mcp_instance, csv_dir):
             - Troubleshoot errors by checking if similar issues were solved before
 
         Example usage:
-            read_tool_notes(tool_name="perplexity_search")
+            read_tool_notes(requester="my-agent", tool_name="perplexity_search")
 
         Note:
             - Returns chronological history of all notes saved for the tool
             - Returns "No notes found" if no notes have been saved yet
             - Notes include timestamps showing when each lesson was learned
         """
-        logger.info(f"read_tool_notes invoked for tool: {tool_name}")
+        logger.info(f"read_tool_notes invoked by {requester} for tool: {tool_name}")
 
         try:
             # Sanitize tool name for filename
@@ -291,7 +326,18 @@ def register_tool_notes(local_mcp_instance, csv_dir):
 
             # Check if notes file exists
             if not notes_file.exists():
-                return f"No notes found for tool: {tool_name}\n\nUse save_tool_notes() to create the first note for this tool."
+                result = f"No notes found for tool: {tool_name}\n\nUse save_tool_notes() to create the first note for this tool."
+
+                # Log the request
+                log_request(
+                    requests_dir=requests_dir,
+                    requester=requester,
+                    tool_name="read_tool_notes",
+                    input_params={"tool_name": tool_name},
+                    output_result=result
+                )
+
+                return result
 
             # Read and return the content
             with open(notes_file, 'r', encoding='utf-8') as f:
@@ -299,8 +345,28 @@ def register_tool_notes(local_mcp_instance, csv_dir):
 
             logger.info(f"Read {len(content)} characters of notes for {tool_name}")
 
+            # Log the request
+            log_request(
+                requests_dir=requests_dir,
+                requester=requester,
+                tool_name="read_tool_notes",
+                input_params={"tool_name": tool_name},
+                output_result=content
+            )
+
             return content
 
         except Exception as e:
             logger.error(f"Error reading tool notes: {e}")
-            return f"✗ Error reading notes: {str(e)}"
+            error_result = f"✗ Error reading notes: {str(e)}"
+
+            # Log error requests too
+            log_request(
+                requests_dir=requests_dir,
+                requester=requester,
+                tool_name="read_tool_notes",
+                input_params={"tool_name": tool_name},
+                output_result=error_result
+            )
+
+            return error_result
