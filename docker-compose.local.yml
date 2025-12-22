@@ -10,7 +10,7 @@ services:
       - PORT=8011
       - TZ=UTC
       - MCP_NAME=perplexity
-      - MCP_REQUIRE_AUTH=true
+      - MCP_REQUIRE_AUTH=false
       - MCP_ALLOW_URL_TOKENS=true
     ports:
       - "8011:8011"

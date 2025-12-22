@@ -3,3 +3,4 @@ examples/
 data/
 prompt.md
 backend/__pycache__/
+tech-specs.md
