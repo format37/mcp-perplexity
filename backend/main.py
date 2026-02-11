@@ -273,7 +273,7 @@ def main():
         # Behind Caddy: respect X-Forwarded-* and use https in redirects
         proxy_headers=True,
         forwarded_allow_ips="*",
-        timeout_keep_alive=120,
+        timeout_keep_alive=660,
     )
 
 if __name__ == "__main__":

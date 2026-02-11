@@ -14,7 +14,8 @@ logger = logging.getLogger(__name__)
 def _call_perplexity_api(
     model: str,
     request: str,
-    reasoning_effort: Optional[str] = None
+    reasoning_effort: Optional[str] = None,
+    timeout: int = 120
 ) -> Dict[str, Any]:
     """
     Call Perplexity API with the specified model and request.
@@ -23,6 +24,7 @@ def _call_perplexity_api(
         model: Perplexity model name (e.g., "sonar", "sonar-pro")
         request: User query/prompt
         reasoning_effort: Optional reasoning effort level for deep-research models
+        timeout: Request timeout in seconds (default 120, use higher for deep-research)
 
     Returns:
         Full JSON response from Perplexity API
@@ -59,7 +61,7 @@ def _call_perplexity_api(
     logger.info(f"Calling Perplexity API with model: {model}")
 
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=120)
+        response = requests.post(url, json=payload, headers=headers, timeout=timeout)
         response.raise_for_status()
         return response.json()
     except requests.RequestException as e:
@@ -313,7 +315,7 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path, reques
 
         try:
             # Call Perplexity API with reasoning_effort parameter
-            response = _call_perplexity_api("sonar-deep-research", request, reasoning_effort)
+            response = _call_perplexity_api("sonar-deep-research", request, reasoning_effort, timeout=600)
 
             logger.info("Response received from Perplexity API")
 
