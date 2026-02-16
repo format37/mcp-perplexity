@@ -14,6 +14,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.routing import Mount
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from mcp_service import register_tool_notes, register_request_log, register_py_eval
 from mcp_resources import register_mcp_resources
 from perplexity_tools import register_perplexity_tools
@@ -64,7 +65,29 @@ def _sanitize_filename(name: str) -> str:
     return sanitized or "script"
 
 
-mcp = FastMCP(_safe_name, streamable_http_path=STREAM_PATH, json_response=True)
+# mcp = FastMCP(_safe_name, streamable_http_path=STREAM_PATH, json_response=True)
+# Configure transport security to allow connections through reverse proxy
+transport_security = TransportSecuritySettings(
+    enable_dns_rebinding_protection=True,
+    allowed_hosts=[
+        "scriptlab.duckdns.org",  # Production domain
+        "localhost:8011",  # Local testing
+        "127.0.0.1:8011",  # Local testing
+        "0.0.0.0:8011",  # Docker internal
+    ],
+    allowed_origins=[
+        "https://scriptlab.duckdns.org",  # Production origin
+        "http://localhost:8011",  # Local testing
+        "http://127.0.0.1:8011",  # Local testing
+    ],
+)
+
+mcp = FastMCP(                                                                                                                                                                                     
+    _safe_name,                                                                                                                                                                                    
+    streamable_http_path=STREAM_PATH,                                                                                                                                                              
+    json_response=True,                                                                                                                                                                            
+    transport_security=transport_security,                                                                                                                                                         
+)
 
 # CSV storage directory (hardcoded for simplicity)
 CSV_DIR = pathlib.Path("data/mcp-perplexity")
