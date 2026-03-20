@@ -113,7 +113,7 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path, reques
     """Register all Perplexity search and research tools"""
 
     @local_mcp_instance.tool()
-    def perplexity_sonar(requester: str, request: str) -> str:
+    def perplexity_sonar(request: str, requester: str = "unknown") -> str:
         """
         Fast answers with reliable search results using Perplexity Sonar.
 
@@ -133,26 +133,37 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path, reques
         - Browsing news, sports, health, and finance content
 
         Parameters:
-            requester (str): Identifier of who is calling this tool (e.g., 'trading-agent', 'user-alex').
-                Used for request logging and audit purposes.
             request (str): Your search query or question
+            requester (str): Optional identifier of who is calling this tool (e.g., 'trading-agent', 'user-alex').
+                Used for request logging and audit purposes.
 
         Returns:
             str: Formatted response with file path, citations, search results, and content preview
 
         Example:
-            perplexity_sonar(requester="my-agent", request="What is the latest news in AI research?")
+            perplexity_sonar(request="What is the latest news in AI research?", requester="my-agent")
         """
-        logger.info(f"perplexity_sonar invoked by {requester} with request: {request[:100]}...")
+        logger.info(f"perplexity_sonar invoked by {requester} with request ({len(request)} chars): {request[:200]}...")
 
         try:
             # Call Perplexity API
             response = _call_perplexity_api("sonar", request)
 
-            logger.info("Response received from Perplexity API")
+            # Log response structure for debugging
+            choices = response.get("choices", [])
+            content = choices[0].get("message", {}).get("content", "") if choices else ""
+            logger.info(
+                f"Response received from Perplexity API: "
+                f"keys={list(response.keys())}, "
+                f"choices={len(choices)}, "
+                f"content_len={len(content)}, "
+                f"citations={len(response.get('citations', []))}, "
+                f"usage={response.get('usage', {})}"
+            )
 
             # Return JSON response directly
             result = json.dumps(response, indent=2, ensure_ascii=False)
+            logger.info(f"Result payload size: {len(result)} chars")
 
             # Log the request
             log_request(
@@ -181,7 +192,7 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path, reques
             return error_result
 
     @local_mcp_instance.tool()
-    def perplexity_sonar_pro(requester: str, request: str) -> str:
+    def perplexity_sonar_pro(request: str, requester: str = "unknown") -> str:
         """
         Advanced search with enhanced search results using Perplexity Sonar Pro.
 
@@ -203,26 +214,37 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path, reques
         - Information synthesis and detailed reporting
 
         Parameters:
-            requester (str): Identifier of who is calling this tool (e.g., 'trading-agent', 'user-alex').
-                Used for request logging and audit purposes.
             request (str): Your search query or question (can be complex)
+            requester (str): Optional identifier of who is calling this tool (e.g., 'trading-agent', 'user-alex').
+                Used for request logging and audit purposes.
 
         Returns:
             str: Formatted response with file path, citations, search results, and content preview
 
         Example:
-            perplexity_sonar_pro(requester="my-agent", request="Analyze the competitive positioning of AI search engines")
+            perplexity_sonar_pro(request="Analyze the competitive positioning of AI search engines", requester="my-agent")
         """
-        logger.info(f"perplexity_sonar_pro invoked by {requester} with request: {request[:100]}...")
+        logger.info(f"perplexity_sonar_pro invoked by {requester} with request ({len(request)} chars): {request[:200]}...")
 
         try:
             # Call Perplexity API
             response = _call_perplexity_api("sonar-pro", request)
 
-            logger.info("Response received from Perplexity API")
+            # Log response structure for debugging
+            choices = response.get("choices", [])
+            content = choices[0].get("message", {}).get("content", "") if choices else ""
+            logger.info(
+                f"Response received from Perplexity API: "
+                f"keys={list(response.keys())}, "
+                f"choices={len(choices)}, "
+                f"content_len={len(content)}, "
+                f"citations={len(response.get('citations', []))}, "
+                f"usage={response.get('usage', {})}"
+            )
 
             # Return JSON response directly
             result = json.dumps(response, indent=2, ensure_ascii=False)
+            logger.info(f"Result payload size: {len(result)} chars")
 
             # Log the request
             log_request(
@@ -252,8 +274,8 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path, reques
 
     @local_mcp_instance.tool()
     def perplexity_sonar_deep_research(
-        requester: str,
         request: str,
+        requester: str = "unknown",
         reasoning_effort: str = "medium"
     ) -> str:
         """
@@ -277,9 +299,9 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path, reques
         - Due diligence and investigative research
 
         Parameters:
-            requester (str): Identifier of who is calling this tool (e.g., 'trading-agent', 'user-alex').
-                Used for request logging and audit purposes.
             request (str): Your research query (should be comprehensive and detailed)
+            requester (str): Optional identifier of who is calling this tool (e.g., 'trading-agent', 'user-alex').
+                Used for request logging and audit purposes.
             reasoning_effort (str): Computational effort level - controls speed vs thoroughness
                 - "low": Faster, simpler answers with reduced token usage
                 - "medium": Balanced approach (default)
@@ -290,12 +312,14 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path, reques
 
         Example:
             perplexity_sonar_deep_research(
-                requester="my-agent",
                 request="Conduct comprehensive analysis of quantum computing industry through 2035",
                 reasoning_effort="high"
             )
         """
-        logger.info(f"perplexity_sonar_deep_research invoked by {requester} with request: {request[:100]}...")
+        logger.info(
+            f"perplexity_sonar_deep_research invoked by {requester} with request "
+            f"({len(request)} chars): {request[:200]}..."
+        )
         logger.info(f"Reasoning effort: {reasoning_effort}")
 
         # Validate reasoning_effort parameter
@@ -317,10 +341,24 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path, reques
             # Call Perplexity API with reasoning_effort parameter
             response = _call_perplexity_api("sonar-deep-research", request, reasoning_effort, timeout=600)
 
-            logger.info("Response received from Perplexity API")
+            # Log response structure for debugging
+            choices = response.get("choices", [])
+            content = choices[0].get("message", {}).get("content", "") if choices else ""
+            reasoning = choices[0].get("message", {}).get("reasoning", "") if choices else ""
+            logger.info(
+                f"Response received from Perplexity API: "
+                f"keys={list(response.keys())}, "
+                f"choices={len(choices)}, "
+                f"content_len={len(content)}, "
+                f"reasoning_len={len(reasoning) if reasoning else 0}, "
+                f"citations={len(response.get('citations', []))}, "
+                f"search_results={len(response.get('search_results', []))}, "
+                f"usage={response.get('usage', {})}"
+            )
 
             # Return JSON response directly
             result = json.dumps(response, indent=2, ensure_ascii=False)
+            logger.info(f"Result payload size: {len(result)} chars")
 
             # Log the request
             log_request(
