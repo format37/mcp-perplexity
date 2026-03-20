@@ -3,12 +3,22 @@ import requests
 import json
 import logging
 import os
+import threading
+import time
+import uuid
 from typing import Any, Dict, Optional
 
 from request_logger import log_request
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# In-memory store for async deep-research jobs
+_jobs: Dict[str, Dict[str, Any]] = {}
+_jobs_lock = threading.Lock()
+
+# Auto-expire jobs older than 2 hours
+_JOB_TTL_SECONDS = 7200
 
 
 def _call_perplexity_api(
@@ -109,6 +119,65 @@ def _extract_json_from_reasoning_response(content: str) -> Optional[Dict[str, An
         return None
 
 
+def _run_deep_research_job(
+    job_id: str,
+    request: str,
+    reasoning_effort: str,
+    requests_dir: pathlib.Path,
+    requester: str
+) -> None:
+    """Background thread worker for async deep research jobs."""
+    try:
+        response = _call_perplexity_api("sonar-deep-research", request, reasoning_effort, timeout=600)
+
+        choices = response.get("choices", [])
+        content = choices[0].get("message", {}).get("content", "") if choices else ""
+        reasoning = choices[0].get("message", {}).get("reasoning", "") if choices else ""
+        logger.info(
+            f"[job={job_id}] Response received from Perplexity API: "
+            f"keys={list(response.keys())}, "
+            f"choices={len(choices)}, "
+            f"content_len={len(content)}, "
+            f"reasoning_len={len(reasoning) if reasoning else 0}, "
+            f"citations={len(response.get('citations', []))}, "
+            f"search_results={len(response.get('search_results', []))}, "
+            f"usage={response.get('usage', {})}"
+        )
+
+        result = json.dumps(response, indent=2, ensure_ascii=False)
+        logger.info(f"[job={job_id}] Result payload size: {len(result)} chars")
+
+        log_request(
+            requests_dir=requests_dir,
+            requester=requester,
+            tool_name="perplexity_sonar_deep_research",
+            input_params={"request": request, "reasoning_effort": reasoning_effort},
+            output_result=result
+        )
+
+        with _jobs_lock:
+            _jobs[job_id]["status"] = "done"
+            _jobs[job_id]["result"] = result
+            _jobs[job_id]["finished_at"] = time.time()
+
+    except Exception as e:
+        logger.error(f"[job={job_id}] Error: {e}")
+        error_result = json.dumps({"error": str(e)}, indent=2)
+
+        log_request(
+            requests_dir=requests_dir,
+            requester=requester,
+            tool_name="perplexity_sonar_deep_research",
+            input_params={"request": request, "reasoning_effort": reasoning_effort},
+            output_result=error_result
+        )
+
+        with _jobs_lock:
+            _jobs[job_id]["status"] = "error"
+            _jobs[job_id]["error"] = str(e)
+            _jobs[job_id]["finished_at"] = time.time()
+
+
 def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path, requests_dir: pathlib.Path):
     """Register all Perplexity search and research tools"""
 
@@ -119,6 +188,7 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path, reques
 
         A lightweight, cost-effective search model optimized for quick, grounded answers
         with real-time web search. Ideal for quick searches and straightforward Q&A tasks.
+        Typical response time: 5-15 seconds.
 
         Features:
         - Non-reasoning model
@@ -138,7 +208,7 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path, reques
                 Used for request logging and audit purposes.
 
         Returns:
-            str: Formatted response with file path, citations, search results, and content preview
+            str: JSON response with citations, search results, and content
 
         Example:
             perplexity_sonar(request="What is the latest news in AI research?", requester="my-agent")
@@ -198,7 +268,7 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path, reques
 
         An advanced search model designed for complex queries, delivering deeper content
         understanding with enhanced search result accuracy and 2x more search results
-        than standard Sonar.
+        than standard Sonar. Typical response time: 10-30 seconds.
 
         Features:
         - Non-reasoning model
@@ -219,7 +289,7 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path, reques
                 Used for request logging and audit purposes.
 
         Returns:
-            str: Formatted response with file path, citations, search results, and content preview
+            str: JSON response with citations, search results, and content
 
         Example:
             perplexity_sonar_pro(request="Analyze the competitive positioning of AI search engines", requester="my-agent")
@@ -279,11 +349,20 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path, reques
         reasoning_effort: str = "medium"
     ) -> str:
         """
-        Exhaustive research with expert-level insights using Perplexity Sonar Deep Research.
+        Start exhaustive deep research using Perplexity Sonar Deep Research (ASYNC).
 
-        A powerful research model capable of conducting exhaustive searches across hundreds
-        of sources, synthesizing expert-level insights, and generating detailed reports
-        with comprehensive analysis.
+        This tool returns IMMEDIATELY with a job_id. The research runs in the background
+        and typically takes 3-10 minutes. Use get_research_result(job_id) to poll for
+        completion every 30 seconds.
+
+        IMPORTANT: This tool is async by design to avoid MCP client timeouts. Do NOT
+        wait for it to return results — call get_research_result() after submitting.
+
+        Workflow:
+            1. Call perplexity_sonar_deep_research(...) → get job_id
+            2. Wait ~30 seconds
+            3. Call get_research_result(job_id=...) → check status
+            4. Repeat step 3 until status == "done"
 
         Features:
         - Deep research / Reasoning model
@@ -300,7 +379,7 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path, reques
 
         Parameters:
             request (str): Your research query (should be comprehensive and detailed)
-            requester (str): Optional identifier of who is calling this tool (e.g., 'trading-agent', 'user-alex').
+            requester (str): Optional identifier of who is calling this tool.
                 Used for request logging and audit purposes.
             reasoning_effort (str): Computational effort level - controls speed vs thoroughness
                 - "low": Faster, simpler answers with reduced token usage
@@ -308,13 +387,18 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path, reques
                 - "high": Deeper, more thorough responses with increased token usage
 
         Returns:
-            str: Formatted response with file path, citations, search results, and detailed analysis
+            str: JSON with job_id and status "running". Use get_research_result(job_id) to fetch results.
 
         Example:
+            # Step 1: start research
             perplexity_sonar_deep_research(
                 request="Conduct comprehensive analysis of quantum computing industry through 2035",
                 reasoning_effort="high"
             )
+            # Returns: {"job_id": "a1b2c3d4", "status": "running", ...}
+
+            # Step 2: poll after ~30s
+            get_research_result(job_id="a1b2c3d4")
         """
         logger.info(
             f"perplexity_sonar_deep_research invoked by {requester} with request "
@@ -326,7 +410,6 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path, reques
         if reasoning_effort not in ["low", "medium", "high"]:
             error_result = json.dumps({"error": f"reasoning_effort must be 'low', 'medium', or 'high', got '{reasoning_effort}'"}, indent=2)
 
-            # Log validation error
             log_request(
                 requests_dir=requests_dir,
                 requester=requester,
@@ -337,51 +420,103 @@ def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path, reques
 
             return error_result
 
-        try:
-            # Call Perplexity API with reasoning_effort parameter
-            response = _call_perplexity_api("sonar-deep-research", request, reasoning_effort, timeout=600)
+        # Generate a short unique job ID
+        job_id = uuid.uuid4().hex[:8]
 
-            # Log response structure for debugging
-            choices = response.get("choices", [])
-            content = choices[0].get("message", {}).get("content", "") if choices else ""
-            reasoning = choices[0].get("message", {}).get("reasoning", "") if choices else ""
-            logger.info(
-                f"Response received from Perplexity API: "
-                f"keys={list(response.keys())}, "
-                f"choices={len(choices)}, "
-                f"content_len={len(content)}, "
-                f"reasoning_len={len(reasoning) if reasoning else 0}, "
-                f"citations={len(response.get('citations', []))}, "
-                f"search_results={len(response.get('search_results', []))}, "
-                f"usage={response.get('usage', {})}"
-            )
+        with _jobs_lock:
+            _jobs[job_id] = {
+                "status": "running",
+                "started_at": time.time(),
+                "requester": requester,
+                "reasoning_effort": reasoning_effort,
+                "request_preview": request[:100],
+            }
 
-            # Return JSON response directly
-            result = json.dumps(response, indent=2, ensure_ascii=False)
-            logger.info(f"Result payload size: {len(result)} chars")
+        # Start background thread
+        thread = threading.Thread(
+            target=_run_deep_research_job,
+            args=(job_id, request, reasoning_effort, requests_dir, requester),
+            daemon=True,
+        )
+        thread.start()
 
-            # Log the request
-            log_request(
-                requests_dir=requests_dir,
-                requester=requester,
-                tool_name="perplexity_sonar_deep_research",
-                input_params={"request": request, "reasoning_effort": reasoning_effort},
-                output_result=result
-            )
+        logger.info(f"[job={job_id}] Background thread started")
 
-            return result
+        return json.dumps({
+            "job_id": job_id,
+            "status": "running",
+            "message": (
+                f"Deep research started (reasoning_effort={reasoning_effort}). "
+                f"Typical completion: 3-10 minutes. "
+                f"Poll with get_research_result(job_id='{job_id}') every 30 seconds."
+            ),
+            "request_preview": request[:100],
+        }, indent=2)
 
-        except Exception as e:
-            logger.error(f"Error in perplexity_sonar_deep_research: {e}")
-            error_result = json.dumps({"error": str(e)}, indent=2)
+    @local_mcp_instance.tool()
+    def get_research_result(job_id: str) -> str:
+        """
+        Poll for the result of an async deep research job.
 
-            # Log error requests too
-            log_request(
-                requests_dir=requests_dir,
-                requester=requester,
-                tool_name="perplexity_sonar_deep_research",
-                input_params={"request": request, "reasoning_effort": reasoning_effort},
-                output_result=error_result
-            )
+        Use this tool after calling perplexity_sonar_deep_research(). Returns the full
+        research result when complete, or status information if still running.
 
-            return error_result
+        Job results are kept in memory for 2 hours after completion, then auto-expired.
+
+        Parameters:
+            job_id (str): The job ID returned by perplexity_sonar_deep_research()
+
+        Returns:
+            str: JSON with one of:
+                - status "running": {"job_id", "status", "elapsed_seconds", "message"}
+                - status "done": Full Perplexity API response JSON (same format as sonar/sonar-pro)
+                - status "error": {"job_id", "status", "error"}
+                - not found: {"error": "Job not found..."}
+
+        Example:
+            get_research_result(job_id="a1b2c3d4")
+        """
+        now = time.time()
+
+        with _jobs_lock:
+            # Clean up expired jobs
+            expired = [
+                jid for jid, j in _jobs.items()
+                if now - j.get("started_at", now) > _JOB_TTL_SECONDS
+            ]
+            for jid in expired:
+                logger.info(f"[job={jid}] Expired, removing from store")
+                del _jobs[jid]
+
+            job = _jobs.get(job_id)
+
+        if job is None:
+            return json.dumps({
+                "error": f"Job '{job_id}' not found. It may have expired (TTL: {_JOB_TTL_SECONDS // 3600}h) or never existed."
+            }, indent=2)
+
+        status = job["status"]
+        elapsed = int(now - job["started_at"])
+
+        if status == "running":
+            logger.info(f"[job={job_id}] Still running ({elapsed}s elapsed)")
+            return json.dumps({
+                "job_id": job_id,
+                "status": "running",
+                "elapsed_seconds": elapsed,
+                "message": f"Still running ({elapsed}s elapsed). Check back in 30 seconds.",
+                "request_preview": job.get("request_preview", ""),
+            }, indent=2)
+
+        if status == "done":
+            logger.info(f"[job={job_id}] Done, returning result (elapsed={elapsed}s)")
+            return job["result"]  # Already serialized JSON string
+
+        # status == "error"
+        logger.info(f"[job={job_id}] Returning error result")
+        return json.dumps({
+            "job_id": job_id,
+            "status": "error",
+            "error": job.get("error", "Unknown error"),
+            "elapsed_seconds": elapsed,
+        }, indent=2)
