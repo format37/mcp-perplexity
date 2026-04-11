@@ -17,7 +17,7 @@ services:
     volumes:
       - /home/ubuntu/mcp/data/:/app/data:rw
       - ./.env.local:/app/.env:ro
-    # restart: unless-stopped
+    restart: always
     networks:
       - default
       - mcp-shared

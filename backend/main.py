@@ -65,28 +65,32 @@ def _sanitize_filename(name: str) -> str:
     return sanitized or "script"
 
 
-# mcp = FastMCP(_safe_name, streamable_http_path=STREAM_PATH, json_response=True)
-# Configure transport security to allow connections through reverse proxy
+# Transport security: allow reverse proxy and Docker hostnames (mirrors kindle)
 transport_security = TransportSecuritySettings(
     enable_dns_rebinding_protection=True,
     allowed_hosts=[
-        "scriptlab.duckdns.org",  # Production domain
-        "localhost:8011",  # Local testing
-        "127.0.0.1:8011",  # Local testing
-        "0.0.0.0:8011",  # Docker internal
+        "localhost:*",
+        "127.0.0.1:*",
+        "mcp-perplexity:*",
+        "mcp-perplexity-local:*",
+        "scriptlab.duckdns.org:*",
+        "scriptlab.duckdns.org",
     ],
     allowed_origins=[
-        "https://scriptlab.duckdns.org",  # Production origin
-        "http://localhost:8011",  # Local testing
-        "http://127.0.0.1:8011",  # Local testing
+        "http://localhost:*",
+        "https://localhost:*",
+        "http://127.0.0.1:*",
+        "http://mcp-perplexity:*",
+        "https://scriptlab.duckdns.org:*",
+        "https://scriptlab.duckdns.org",
     ],
 )
 
-mcp = FastMCP(                                                                                                                                                                                     
-    _safe_name,                                                                                                                                                                                    
-    streamable_http_path=STREAM_PATH,                                                                                                                                                              
-    json_response=True,                                                                                                                                                                            
-    transport_security=transport_security,                                                                                                                                                         
+mcp = FastMCP(
+    _safe_name,
+    streamable_http_path=STREAM_PATH,
+    json_response=True,
+    transport_security=transport_security,
 )
 
 # CSV storage directory (hardcoded for simplicity)
@@ -276,8 +280,38 @@ class TokenAuthMiddleware(BaseHTTPMiddleware):
         return JSONResponse({"detail": detail}, status_code=401, headers={"WWW-Authenticate": "Bearer"})
 
 
+class AcceptHeaderFixMiddleware(BaseHTTPMiddleware):
+    """Normalize the Accept header for MCP POST requests.
+
+    Why: MCP SDK 1.26 returns 406 unless Accept includes application/json
+    (and, in SSE mode, also text/event-stream). Some clients (e.g. Claude
+    web) send a non-conformant Accept header, so we rewrite it here and
+    log the original for diagnostics.
+    """
+
+    async def dispatch(self, request, call_next):
+        path = request.url.path or "/"
+        if path.startswith(BASE_PATH):
+            incoming = request.headers.get("accept", "")
+            ua = request.headers.get("user-agent", "")
+            session_id = request.headers.get("mcp-session-id", "")
+            logger.info(
+                "Incoming %s %s ua=%r accept=%r session=%r",
+                request.method, path, ua, incoming, session_id,
+            )
+            new_headers = [
+                (k, v) for (k, v) in request.scope["headers"]
+                if k.lower() != b"accept"
+            ]
+            new_headers.append((b"accept", b"application/json, text/event-stream"))
+            request.scope["headers"] = new_headers
+        return await call_next(request)
+
+
 # Install auth middleware last to wrap the full app
 app.add_middleware(TokenAuthMiddleware)
+# Add Accept-header fix as the outermost middleware so it runs before auth
+app.add_middleware(AcceptHeaderFixMiddleware)
 
 def main():
     """

@@ -181,7 +181,8 @@ def _run_deep_research_job(
 def register_perplexity_tools(local_mcp_instance, json_dir: pathlib.Path, requests_dir: pathlib.Path):
     """Register all Perplexity search and research tools"""
 
-    @local_mcp_instance.tool()
+    # Disabled: prefer perplexity_sonar_pro over the basic search tool.
+    # @local_mcp_instance.tool()
     def perplexity_sonar(request: str, requester: str = "unknown") -> str:
         """
         Fast answers with reliable search results using Perplexity Sonar.
